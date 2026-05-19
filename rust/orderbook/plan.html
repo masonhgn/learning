@@ -1,0 +1,1175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Async Rust Orderbook — Phased Roadmap</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --bg-2: #131a32;
+    --card: #161d38;
+    --card-2: #1d2547;
+    --line: #2a3360;
+    --text: #e6e9f5;
+    --muted: #9aa3c2;
+    --accent: #7c9cff;
+    --accent-2: #a78bfa;
+    --bid: #4ade80;
+    --ask: #f87171;
+    --warn: #fbbf24;
+    --code-bg: #0e1428;
+    --ok: #34d399;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 56px 28px 96px; }
+  code, .mono { font-family: "JetBrains Mono", Menlo, Monaco, Consolas, monospace; font-size: 0.92em; }
+  code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; color: #cfd6ff; border: 1px solid var(--line); }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.86em;
+    color: #cfd6ff;
+    margin: 12px 0 0;
+  }
+  h1 { font-size: 2.4rem; margin: 0 0 8px; letter-spacing: -0.02em; }
+  h2 { font-size: 1.55rem; margin: 0; letter-spacing: -0.01em; }
+  h3 { font-size: 1.05rem; margin: 18px 0 8px; color: var(--accent); letter-spacing: 0.02em; text-transform: uppercase; font-weight: 600; }
+  p { color: #d6dbf0; }
+  .muted { color: var(--muted); }
+  a { color: var(--accent); }
+
+  /* hero */
+  .hero {
+    padding: 28px 0 36px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 36px;
+  }
+  .hero .eyebrow {
+    color: var(--accent-2);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .hero .sub { color: var(--muted); font-size: 1.05rem; max-width: 720px; }
+  .hero .meta {
+    display: flex; flex-wrap: wrap; gap: 14px; margin-top: 22px;
+  }
+  .pill {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .pill strong { color: var(--text); font-weight: 600; }
+
+  /* timeline */
+  .timeline {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    margin: 28px 0 48px;
+  }
+  .tl {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .tl .num {
+    font-family: "JetBrains Mono", Menlo, monospace;
+    font-size: 0.78rem;
+    color: var(--accent-2);
+    letter-spacing: 0.1em;
+  }
+  .tl .ttl { font-weight: 600; font-size: 0.88rem; margin-top: 4px; }
+  .tl .tag { font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+  .tl.sync::after, .tl.async::after {
+    content: "";
+    position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  }
+  .tl.sync::after { background: var(--accent); }
+  .tl.async::after { background: var(--accent-2); }
+
+  /* phase card */
+  .phase {
+    background: linear-gradient(180deg, var(--card) 0%, var(--bg-2) 100%);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 28px 30px 30px;
+    margin: 0 0 36px;
+  }
+  .phase-head {
+    display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap;
+    border-bottom: 1px dashed var(--line);
+    padding-bottom: 18px;
+    margin-bottom: 22px;
+  }
+  .badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 52px; height: 52px;
+    border-radius: 12px;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    font-family: "JetBrains Mono", Menlo, monospace;
+    font-size: 1.2rem;
+    color: var(--accent-2);
+    flex-shrink: 0;
+  }
+  .phase-head .title { flex: 1; min-width: 260px; }
+  .phase-head .goal { color: var(--muted); margin-top: 4px; font-size: 0.95rem; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip {
+    font-family: "JetBrains Mono", Menlo, monospace;
+    font-size: 0.74rem;
+    padding: 3px 9px;
+    border-radius: 4px;
+    background: var(--code-bg);
+    color: var(--muted);
+    border: 1px solid var(--line);
+  }
+  .chip.async { color: var(--accent-2); border-color: rgba(167,139,250,0.4); }
+  .chip.warn  { color: var(--warn); border-color: rgba(251,191,36,0.4); }
+  .chip.ok    { color: var(--ok); border-color: rgba(52,211,153,0.4); }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 22px;
+    margin-top: 6px;
+  }
+  @media (max-width: 820px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .panel.diagram { display: flex; align-items: center; justify-content: center; padding: 18px; }
+  .panel svg { max-width: 100%; height: auto; }
+
+  ul.tasks { margin: 0; padding-left: 0; list-style: none; }
+  ul.tasks li {
+    padding: 8px 0 8px 28px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    position: relative;
+    font-size: 0.95rem;
+  }
+  ul.tasks li:last-child { border-bottom: none; }
+  ul.tasks li::before {
+    content: "";
+    position: absolute; left: 4px; top: 14px;
+    width: 12px; height: 12px;
+    border: 1.5px solid var(--accent);
+    border-radius: 3px;
+  }
+  ul.tasks li.opt::before { border-style: dashed; border-color: var(--muted); }
+  ul.tasks li .hint { color: var(--muted); font-size: 0.85em; display: block; margin-top: 2px; }
+
+  .callout {
+    background: rgba(124,156,255,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 12px 0;
+    font-size: 0.93rem;
+  }
+  .callout.warn { background: rgba(251,191,36,0.07); border-left-color: var(--warn); }
+  .callout.tip { background: rgba(52,211,153,0.07); border-left-color: var(--ok); }
+  .callout strong { color: var(--text); }
+
+  .concepts {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 6px;
+  }
+  .concept {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-family: "JetBrains Mono", Menlo, monospace;
+    font-size: 0.78rem;
+    color: #b8c1e0;
+  }
+
+  .check {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 0;
+    font-size: 0.93rem;
+  }
+  .check .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok); margin-top: 8px; flex-shrink: 0;
+  }
+
+  .legend { display: flex; gap: 18px; font-size: 0.8rem; color: var(--muted); margin-top: 10px; flex-wrap: wrap; }
+  .legend span::before {
+    content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+    margin-right: 6px; vertical-align: middle;
+  }
+  .legend .sb::before { background: var(--accent); }
+  .legend .sa::before { background: var(--accent-2); }
+
+  hr.sep { border: none; border-top: 1px solid var(--line); margin: 56px 0 36px; }
+
+  .footer-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px; margin-top: 18px;
+  }
+  .footer-grid .panel h4 { margin: 0 0 8px; font-size: 0.95rem; color: var(--accent-2); }
+  .footer-grid .panel ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.9rem; }
+  .footer-grid .panel li { padding: 3px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="eyebrow">Roadmap · Async Rust</div>
+    <h1>Building a Concurrent Orderbook Exchange in Rust</h1>
+    <p class="sub">
+      A six-phase roadmap that takes you from a single-threaded matching engine to a
+      multi-symbol, multi-client, tokio-backed exchange. Each phase ships something
+      you can actually run before the next phase starts.
+    </p>
+    <div class="meta">
+      <div class="pill"><strong>Language:</strong> Rust (stable)</div>
+      <div class="pill"><strong>Runtime:</strong> tokio</div>
+      <div class="pill"><strong>Focus:</strong> async patterns, not data-structure tradeoffs</div>
+      <div class="pill"><strong>Style:</strong> phased — every phase runs</div>
+    </div>
+  </header>
+
+  <!-- TIMELINE -->
+  <div class="timeline">
+    <div class="tl sync">
+      <div class="num">PHASE 1</div>
+      <div class="ttl">Types &amp; Book</div>
+      <div class="tag">sync</div>
+    </div>
+    <div class="tl sync">
+      <div class="num">PHASE 2</div>
+      <div class="ttl">Matching</div>
+      <div class="tag">sync</div>
+    </div>
+    <div class="tl async">
+      <div class="num">PHASE 3</div>
+      <div class="ttl">Actor Loop</div>
+      <div class="tag">async</div>
+    </div>
+    <div class="tl async">
+      <div class="num">PHASE 4</div>
+      <div class="ttl">TCP Server</div>
+      <div class="tag">async</div>
+    </div>
+    <div class="tl async">
+      <div class="num">PHASE 5</div>
+      <div class="ttl">Multi-symbol</div>
+      <div class="tag">scale</div>
+    </div>
+    <div class="tl async">
+      <div class="num">PHASE 6</div>
+      <div class="ttl">Durability</div>
+      <div class="tag">stretch</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="sb">synchronous foundations (phases 1–2)</span>
+    <span class="sa">async &amp; networking (phases 3–6)</span>
+  </div>
+
+  <hr class="sep" />
+
+  <!-- =================== PHASE 1 =================== -->
+  <section class="phase">
+    <div class="phase-head">
+      <div class="badge">01</div>
+      <div class="title">
+        <h2>Types &amp; the Book</h2>
+        <div class="goal">Build the data model and the book itself. No matching yet — just place and cancel.</div>
+        <div class="chip-row">
+          <span class="chip">cargo init</span>
+          <span class="chip">structs</span>
+          <span class="chip">enums</span>
+          <span class="chip">BTreeMap</span>
+          <span class="chip">HashMap</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel diagram">
+        <!-- orderbook visualization -->
+        <svg viewBox="0 0 420 320" width="420">
+          <defs>
+            <linearGradient id="askGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#f87171" stop-opacity="0.6"/>
+              <stop offset="1" stop-color="#f87171" stop-opacity="0.15"/>
+            </linearGradient>
+            <linearGradient id="bidGrad" x1="0" x2="0" y1="1" y2="0">
+              <stop offset="0" stop-color="#4ade80" stop-opacity="0.6"/>
+              <stop offset="1" stop-color="#4ade80" stop-opacity="0.15"/>
+            </linearGradient>
+          </defs>
+          <!-- title -->
+          <text x="210" y="20" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="11">orderbook · price ladder</text>
+
+          <!-- asks -->
+          <g font-family="JetBrains Mono, monospace" font-size="12">
+            <rect x="40" y="38" width="340" height="26" fill="url(#askGrad)"/>
+            <text x="56" y="55" fill="#f87171">ASK 103</text>
+            <text x="220" y="55" fill="#e6e9f5">qty 40</text>
+            <text x="330" y="55" fill="#9aa3c2">3 orders</text>
+
+            <rect x="40" y="66" width="280" height="26" fill="url(#askGrad)"/>
+            <text x="56" y="83" fill="#f87171">ASK 102</text>
+            <text x="220" y="83" fill="#e6e9f5">qty 25</text>
+            <text x="330" y="83" fill="#9aa3c2">2 orders</text>
+
+            <rect x="40" y="94" width="180" height="26" fill="url(#askGrad)"/>
+            <text x="56" y="111" fill="#f87171">ASK 101</text>
+            <text x="220" y="111" fill="#e6e9f5">qty 10</text>
+            <text x="330" y="111" fill="#9aa3c2">best ask</text>
+          </g>
+
+          <!-- spread -->
+          <line x1="40" y1="138" x2="380" y2="138" stroke="#2a3360" stroke-dasharray="4 4"/>
+          <text x="210" y="155" text-anchor="middle" fill="#a78bfa" font-family="JetBrains Mono, monospace" font-size="11">— spread —</text>
+
+          <!-- bids -->
+          <g font-family="JetBrains Mono, monospace" font-size="12">
+            <rect x="40" y="170" width="220" height="26" fill="url(#bidGrad)"/>
+            <text x="56" y="187" fill="#4ade80">BID  99</text>
+            <text x="220" y="187" fill="#e6e9f5">qty 15</text>
+            <text x="330" y="187" fill="#9aa3c2">best bid</text>
+
+            <rect x="40" y="198" width="300" height="26" fill="url(#bidGrad)"/>
+            <text x="56" y="215" fill="#4ade80">BID  98</text>
+            <text x="220" y="215" fill="#e6e9f5">qty 30</text>
+            <text x="330" y="215" fill="#9aa3c2">2 orders</text>
+
+            <rect x="40" y="226" width="360" height="26" fill="url(#bidGrad)"/>
+            <text x="56" y="243" fill="#4ade80">BID  97</text>
+            <text x="220" y="243" fill="#e6e9f5">qty 50</text>
+            <text x="330" y="243" fill="#9aa3c2">4 orders</text>
+          </g>
+
+          <!-- side labels -->
+          <text x="20" y="80" fill="#f87171" font-family="JetBrains Mono, monospace" font-size="10" transform="rotate(-90 20 80)">ASKS</text>
+          <text x="20" y="220" fill="#4ade80" font-family="JetBrains Mono, monospace" font-size="10" transform="rotate(-90 20 220)">BIDS</text>
+
+          <!-- internal structure note -->
+          <text x="210" y="288" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="10">each row = price level = FIFO queue of orders</text>
+          <text x="210" y="304" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="10">price-time priority: best price first, then earliest order</text>
+        </svg>
+      </div>
+
+      <div class="panel">
+        <h3>Recommended Data Structure</h3>
+        <p>You said you don't want to think about this — so here's the answer. Don't second-guess it for now.</p>
+<pre><span class="mono">struct Order { id, side, price, qty, ts }
+
+struct Book {
+    bids: BTreeMap&lt;Price, VecDeque&lt;Order&gt;&gt;,
+    asks: BTreeMap&lt;Price, VecDeque&lt;Order&gt;&gt;,
+    by_id: HashMap&lt;OrderId, (Side, Price)&gt;,
+}</span></pre>
+        <div class="callout tip">
+          <strong>Why this works:</strong> <code>BTreeMap</code> gives you O(log n) best-price lookup
+          on either side. The <code>VecDeque</code> inside each price level enforces
+          time-priority via <code>push_back</code> / <code>pop_front</code>. The auxiliary
+          <code>HashMap</code> lets you cancel in O(log n) without scanning the whole book.
+        </div>
+        <div class="callout warn">
+          <strong>Don't use <code>f64</code> for prices.</strong> Use integer ticks (e.g.
+          cents as <code>u64</code>). Floating-point comparison will haunt you.
+          For bids, iterate the <code>BTreeMap</code> in reverse to get best-first.
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Tasks</h3>
+        <ul class="tasks">
+          <li><code>cargo new --bin orderbook</code> and set up modules: <code>order</code>, <code>book</code>, <code>engine</code>.</li>
+          <li>Define <code>Side</code>, <code>OrderType</code> (limit/market), <code>Order</code>, <code>OrderId</code>, <code>Price</code>, <code>Qty</code> as newtypes or aliases.</li>
+          <li>Build <code>Book::new()</code>, <code>Book::add(order)</code>, <code>Book::cancel(id)</code>.
+            <span class="hint">no matching yet — adding a buy at price 200 with asks resting at 100 is fine; just insert it.</span>
+          </li>
+          <li>Add <code>Book::best_bid()</code> / <code>best_ask()</code> / <code>top_of_book()</code>.</li>
+          <li>Implement <code>Display</code> for the book so you can <code>println!</code> it during dev.</li>
+          <li>Unit tests: insert, cancel, cancel-missing, multiple price levels, FIFO order at a price.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Rust Concepts Used Here</h3>
+        <div class="concepts">
+          <span class="concept">struct / enum</span>
+          <span class="concept">derive(Debug, Clone)</span>
+          <span class="concept">Option&lt;T&gt;</span>
+          <span class="concept">Result&lt;T, E&gt;</span>
+          <span class="concept">BTreeMap iteration</span>
+          <span class="concept">VecDeque</span>
+          <span class="concept">newtype pattern</span>
+          <span class="concept">#[cfg(test)]</span>
+        </div>
+        <h3>Done when</h3>
+        <div class="check"><span class="dot"></span> <code>cargo test</code> passes.</div>
+        <div class="check"><span class="dot"></span> You can drive the book from a test harness and print a sensible ladder.</div>
+        <div class="check"><span class="dot"></span> <code>best_bid &lt; best_ask</code> is always true after any operation.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== PHASE 2 =================== -->
+  <section class="phase">
+    <div class="phase-head">
+      <div class="badge">02</div>
+      <div class="title">
+        <h2>The Matching Engine</h2>
+        <div class="goal">Crossing orders match. Partial fills work. Trades are emitted as events.</div>
+        <div class="chip-row">
+          <span class="chip">price-time priority</span>
+          <span class="chip">partial fills</span>
+          <span class="chip">market orders</span>
+          <span class="chip">iterators</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel diagram">
+        <!-- matching diagram -->
+        <svg viewBox="0 0 440 280" width="440">
+          <text x="220" y="18" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="11">incoming: BUY 30 @ 102 (limit)</text>
+
+          <!-- arrow incoming -->
+          <path d="M 220 26 L 220 56" stroke="#a78bfa" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#a78bfa"/>
+            </marker>
+            <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#4ade80"/>
+            </marker>
+          </defs>
+
+          <!-- book before -->
+          <g font-family="JetBrains Mono, monospace" font-size="11">
+            <text x="60" y="80" fill="#9aa3c2">book before</text>
+            <rect x="60" y="88" width="160" height="22" fill="rgba(248,113,113,0.25)"/>
+            <text x="68" y="103" fill="#f87171">ASK 102 · qty 25</text>
+            <rect x="60" y="112" width="160" height="22" fill="rgba(248,113,113,0.35)"/>
+            <text x="68" y="127" fill="#f87171">ASK 101 · qty 10</text>
+            <line x1="60" y1="142" x2="220" y2="142" stroke="#2a3360" stroke-dasharray="3 3"/>
+            <rect x="60" y="146" width="160" height="22" fill="rgba(74,222,128,0.25)"/>
+            <text x="68" y="161" fill="#4ade80">BID  99 · qty 15</text>
+          </g>
+
+          <!-- algorithm steps -->
+          <g font-family="JetBrains Mono, monospace" font-size="11">
+            <text x="244" y="80" fill="#a78bfa">match loop</text>
+            <text x="244" y="102" fill="#e6e9f5">1. peek best ask (101)</text>
+            <text x="244" y="120" fill="#e6e9f5">2. 101 ≤ 102 → cross</text>
+            <text x="244" y="138" fill="#e6e9f5">3. fill 10 @ 101</text>
+            <text x="244" y="156" fill="#e6e9f5">4. remaining buy: 20</text>
+            <text x="244" y="174" fill="#e6e9f5">5. fill 20 @ 102</text>
+            <text x="244" y="192" fill="#4ade80">→ 2 trades emitted</text>
+            <text x="244" y="210" fill="#9aa3c2">buy fully filled · no rest</text>
+          </g>
+
+          <!-- trades out -->
+          <path d="M 220 245 L 60 245" stroke="#4ade80" stroke-width="1.8" fill="none" marker-end="url(#arr2)"/>
+          <text x="140" y="265" text-anchor="middle" fill="#4ade80" font-family="JetBrains Mono, monospace" font-size="10">Trade { px, qty, buyer, seller }</text>
+        </svg>
+      </div>
+
+      <div class="panel">
+        <h3>The Algorithm in Words</h3>
+        <p>For an incoming <strong>buy</strong> at limit price <code>P</code>:</p>
+        <ol>
+          <li>Look at the best ask. If it doesn't exist or its price <code>&gt; P</code>, stop matching.</li>
+          <li>Otherwise pop the front order at that price level. Fill min(its qty, remaining incoming).</li>
+          <li>Emit a <code>Trade</code>. Decrement quantities. If the resting order is fully filled, drop it; otherwise push it back to the front.</li>
+          <li>If the price level is empty, remove it from the book. Loop.</li>
+          <li>When the incoming order is exhausted, stop. Otherwise rest the remainder on the bid side.</li>
+        </ol>
+        <p><strong>Sell</strong> is symmetric — swap "best ask" for "best bid" and flip the comparison.</p>
+        <div class="callout">
+          <strong>Market orders</strong> are limit orders with effectively infinite (or zero) price.
+          Same algorithm, just no resting step at the end.
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Tasks</h3>
+        <ul class="tasks">
+          <li>Refactor <code>Book::add</code> into a higher-level <code>Engine::submit(order) -&gt; SubmitResult</code>.</li>
+          <li><code>SubmitResult</code> = list of <code>Trade</code>s + optional rested-order info.</li>
+          <li>Implement the match loop above. Watch out for borrow-checker pain when you mutate the same <code>BTreeMap</code> entry you're iterating.
+            <span class="hint">hint: take ownership of the front order with <code>pop_front()</code>, mutate, then conditionally push back.</span>
+          </li>
+          <li>Add <code>OrderType::Market</code> support.</li>
+          <li>Tests: empty book no-cross, exact match, partial-fill incoming, partial-fill resting, market eats multiple levels, market on empty book.</li>
+          <li class="opt">(Optional) IOC and FOK time-in-force flags.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Rust Concepts Used Here</h3>
+        <div class="concepts">
+          <span class="concept">BTreeMap::iter_mut</span>
+          <span class="concept">first_entry / last_entry</span>
+          <span class="concept">Vec&lt;Trade&gt; return</span>
+          <span class="concept">match patterns</span>
+          <span class="concept">borrow scoping</span>
+          <span class="concept">mem::take</span>
+        </div>
+        <div class="callout warn">
+          <strong>The borrow checker is going to push back here.</strong> When you remove
+          an empty price level while iterating, you'll hit "cannot borrow as mutable
+          more than once." Resolve it by structuring the loop with explicit
+          peek-then-pop steps, not <code>iter_mut</code> walks.
+        </div>
+        <h3>Done when</h3>
+        <div class="check"><span class="dot"></span> Replay a fuzzy sequence of orders and the book/trade output is deterministic.</div>
+        <div class="check"><span class="dot"></span> No order is ever lost (sum of resting + filled = sum of submitted).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== PHASE 3 =================== -->
+  <section class="phase">
+    <div class="phase-head">
+      <div class="badge">03</div>
+      <div class="title">
+        <h2>Async Wrapper — the Actor Pattern</h2>
+        <div class="goal">Wrap the engine in a tokio task. Talk to it via channels. Now you've crossed into async Rust.</div>
+        <div class="chip-row">
+          <span class="chip async">tokio</span>
+          <span class="chip async">mpsc</span>
+          <span class="chip async">oneshot</span>
+          <span class="chip async">broadcast</span>
+          <span class="chip async">actor pattern</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel diagram">
+        <svg viewBox="0 0 460 280" width="460">
+          <defs>
+            <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c9cff"/>
+            </marker>
+            <marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#4ade80"/>
+            </marker>
+          </defs>
+
+          <!-- engine task -->
+          <rect x="160" y="80" width="200" height="110" rx="10" fill="#1d2547" stroke="#7c9cff"/>
+          <text x="260" y="103" text-anchor="middle" fill="#7c9cff" font-family="JetBrains Mono, monospace" font-size="11">tokio::task</text>
+          <text x="260" y="125" text-anchor="middle" fill="#e6e9f5" font-family="-apple-system" font-size="13" font-weight="600">Matching Engine</text>
+          <text x="260" y="148" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="10">owns the Book</text>
+          <text x="260" y="166" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="10">single-threaded inside</text>
+          <text x="260" y="184" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="10">no locks needed</text>
+
+          <!-- mpsc in -->
+          <rect x="20" y="40" width="110" height="40" rx="6" fill="#161d38" stroke="#2a3360"/>
+          <text x="75" y="58" text-anchor="middle" fill="#e6e9f5" font-family="JetBrains Mono, monospace" font-size="11">client A</text>
+          <text x="75" y="72" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">.submit(o).await</text>
+
+          <rect x="20" y="90" width="110" height="40" rx="6" fill="#161d38" stroke="#2a3360"/>
+          <text x="75" y="108" text-anchor="middle" fill="#e6e9f5" font-family="JetBrains Mono, monospace" font-size="11">client B</text>
+          <text x="75" y="122" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">.cancel(id).await</text>
+
+          <path d="M 130 60 L 160 110" stroke="#7c9cff" stroke-width="1.6" fill="none" marker-end="url(#ar3)"/>
+          <path d="M 130 110 L 160 130" stroke="#7c9cff" stroke-width="1.6" fill="none" marker-end="url(#ar3)"/>
+          <text x="145" y="155" fill="#7c9cff" font-family="JetBrains Mono, monospace" font-size="10">mpsc::channel</text>
+
+          <!-- broadcast out -->
+          <rect x="380" y="40" width="60" height="40" rx="6" fill="#161d38" stroke="#2a3360"/>
+          <text x="410" y="58" text-anchor="middle" fill="#e6e9f5" font-family="JetBrains Mono, monospace" font-size="10">sub 1</text>
+          <text x="410" y="72" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">market feed</text>
+
+          <rect x="380" y="90" width="60" height="40" rx="6" fill="#161d38" stroke="#2a3360"/>
+          <text x="410" y="108" text-anchor="middle" fill="#e6e9f5" font-family="JetBrains Mono, monospace" font-size="10">sub 2</text>
+          <text x="410" y="122" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">logger</text>
+
+          <path d="M 360 130 L 380 100" stroke="#4ade80" stroke-width="1.6" fill="none" marker-end="url(#ar4)"/>
+          <path d="M 360 120 L 380 60" stroke="#4ade80" stroke-width="1.6" fill="none" marker-end="url(#ar4)"/>
+          <text x="395" y="155" fill="#4ade80" font-family="JetBrains Mono, monospace" font-size="10">broadcast</text>
+
+          <!-- oneshot return -->
+          <path d="M 160 170 Q 110 200 75 145" stroke="#9aa3c2" stroke-dasharray="3 3" fill="none" stroke-width="1.4" marker-end="url(#ar3)"/>
+          <text x="100" y="220" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="10">oneshot reply</text>
+
+          <text x="230" y="252" text-anchor="middle" fill="#a78bfa" font-family="JetBrains Mono, monospace" font-size="11">one owner of state · many askers · zero locks</text>
+        </svg>
+      </div>
+
+      <div class="panel">
+        <h3>The Actor Pattern (read this first)</h3>
+        <p>
+          Instead of wrapping the book in <code>Arc&lt;Mutex&lt;Book&gt;&gt;</code>,
+          give it to <em>one</em> tokio task and talk to that task with messages.
+          The task is the sole owner. No locks, no contention, no Send/Sync drama
+          for the book itself.
+        </p>
+        <h3>The Channel Cheat-sheet</h3>
+        <div class="concepts">
+          <span class="concept">mpsc — many-to-one commands</span>
+          <span class="concept">oneshot — one-time reply</span>
+          <span class="concept">broadcast — fan-out fills</span>
+          <span class="concept">watch — latest top-of-book</span>
+        </div>
+        <div class="callout">
+          The command enum carries its own reply channel:
+<pre><span class="mono">enum Cmd {
+    Submit { order, reply: oneshot::Sender&lt;SubmitResult&gt; },
+    Cancel { id,    reply: oneshot::Sender&lt;bool&gt; },
+}</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Tasks</h3>
+        <ul class="tasks">
+          <li>Add <code>tokio = { version = "1", features = ["full"] }</code> to Cargo.toml.</li>
+          <li>Define <code>Cmd</code> enum with submit/cancel variants, each carrying a <code>oneshot::Sender</code>.</li>
+          <li>Write <code>fn run_engine(mut rx: mpsc::Receiver&lt;Cmd&gt;, trade_tx: broadcast::Sender&lt;Trade&gt;)</code>. It owns the <code>Engine</code> and loops on <code>rx.recv().await</code>.</li>
+          <li>Wrap the API in an <code>EngineHandle { cmd_tx, trade_tx }</code> with friendly <code>async fn submit(&amp;self, o) -&gt; SubmitResult</code> methods.
+            <span class="hint">inside submit: create the oneshot pair, send the Cmd, await the receiver.</span>
+          </li>
+          <li>Write an integration test that spawns the engine task, sends 100 orders concurrently from <code>tokio::join!</code>'d clients, and verifies invariants.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Rust Concepts Used Here</h3>
+        <div class="concepts">
+          <span class="concept">#[tokio::main]</span>
+          <span class="concept">tokio::spawn</span>
+          <span class="concept">async fn / .await</span>
+          <span class="concept">Send + 'static</span>
+          <span class="concept">channels: mpsc/oneshot/broadcast</span>
+          <span class="concept">Arc&lt;EngineHandle&gt;</span>
+          <span class="concept">tokio::join!</span>
+        </div>
+        <div class="callout tip">
+          <strong>Mental model:</strong> the engine task is a <em>state machine</em> driven by messages. It runs forever, processing one command at a time. Concurrency happens between clients, never inside the engine.
+        </div>
+        <h3>Done when</h3>
+        <div class="check"><span class="dot"></span> Multiple async clients hammer <code>handle.submit().await</code> concurrently and you get correct results.</div>
+        <div class="check"><span class="dot"></span> A subscriber to the broadcast channel sees every <code>Trade</code> in order.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== PHASE 4 =================== -->
+  <section class="phase">
+    <div class="phase-head">
+      <div class="badge">04</div>
+      <div class="title">
+        <h2>The TCP Server</h2>
+        <div class="goal">External clients connect over the network, send orders, and receive fills in real time.</div>
+        <div class="chip-row">
+          <span class="chip async">TcpListener</span>
+          <span class="chip async">BufReader::lines</span>
+          <span class="chip async">tokio::select!</span>
+          <span class="chip async">spawn-per-conn</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel diagram">
+        <svg viewBox="0 0 480 290" width="480">
+          <defs>
+            <marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c9cff"/>
+            </marker>
+          </defs>
+
+          <!-- clients -->
+          <rect x="20" y="20" width="90" height="30" rx="5" fill="#161d38" stroke="#2a3360"/>
+          <text x="65" y="40" text-anchor="middle" fill="#e6e9f5" font-family="JetBrains Mono, monospace" font-size="11">client 1</text>
+          <rect x="20" y="60" width="90" height="30" rx="5" fill="#161d38" stroke="#2a3360"/>
+          <text x="65" y="80" text-anchor="middle" fill="#e6e9f5" font-family="JetBrains Mono, monospace" font-size="11">client 2</text>
+          <rect x="20" y="100" width="90" height="30" rx="5" fill="#161d38" stroke="#2a3360"/>
+          <text x="65" y="120" text-anchor="middle" fill="#e6e9f5" font-family="JetBrains Mono, monospace" font-size="11">client 3</text>
+          <text x="65" y="155" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">netcat / your client</text>
+
+          <!-- listener -->
+          <rect x="150" y="60" width="120" height="50" rx="6" fill="#1d2547" stroke="#7c9cff"/>
+          <text x="210" y="80" text-anchor="middle" fill="#e6e9f5" font-family="-apple-system" font-size="12" font-weight="600">accept loop</text>
+          <text x="210" y="97" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="10">TcpListener</text>
+
+          <path d="M 110 35 Q 130 50 150 70" stroke="#7c9cff" fill="none" stroke-width="1.4" marker-end="url(#ar5)"/>
+          <path d="M 110 75 L 150 85" stroke="#7c9cff" fill="none" stroke-width="1.4" marker-end="url(#ar5)"/>
+          <path d="M 110 115 Q 130 100 150 95" stroke="#7c9cff" fill="none" stroke-width="1.4" marker-end="url(#ar5)"/>
+
+          <!-- per conn tasks -->
+          <rect x="300" y="15" width="120" height="35" rx="5" fill="#161d38" stroke="#a78bfa"/>
+          <text x="360" y="33" text-anchor="middle" fill="#a78bfa" font-family="JetBrains Mono, monospace" font-size="10">conn task 1</text>
+          <text x="360" y="46" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">read · parse · select!</text>
+
+          <rect x="300" y="60" width="120" height="35" rx="5" fill="#161d38" stroke="#a78bfa"/>
+          <text x="360" y="78" text-anchor="middle" fill="#a78bfa" font-family="JetBrains Mono, monospace" font-size="10">conn task 2</text>
+          <text x="360" y="91" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">spawned per accept</text>
+
+          <rect x="300" y="105" width="120" height="35" rx="5" fill="#161d38" stroke="#a78bfa"/>
+          <text x="360" y="123" text-anchor="middle" fill="#a78bfa" font-family="JetBrains Mono, monospace" font-size="10">conn task 3</text>
+
+          <path d="M 270 85 L 300 32" stroke="#a78bfa" fill="none" stroke-width="1.4" stroke-dasharray="3 3"/>
+          <path d="M 270 85 L 300 77" stroke="#a78bfa" fill="none" stroke-width="1.4" stroke-dasharray="3 3"/>
+          <path d="M 270 85 L 300 122" stroke="#a78bfa" fill="none" stroke-width="1.4" stroke-dasharray="3 3"/>
+
+          <!-- engine -->
+          <rect x="180" y="180" width="180" height="55" rx="8" fill="#1d2547" stroke="#7c9cff"/>
+          <text x="270" y="202" text-anchor="middle" fill="#e6e9f5" font-family="-apple-system" font-size="13" font-weight="600">engine task</text>
+          <text x="270" y="220" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="10">from phase 3 · unchanged</text>
+
+          <!-- arrows down to engine -->
+          <path d="M 360 50 Q 390 120 360 180" stroke="#7c9cff" fill="none" stroke-width="1.4" marker-end="url(#ar5)"/>
+          <path d="M 360 140 Q 390 160 360 180" stroke="#7c9cff" fill="none" stroke-width="1.4" marker-end="url(#ar5)"/>
+          <text x="420" y="135" fill="#7c9cff" font-family="JetBrains Mono, monospace" font-size="9">mpsc cmds</text>
+
+          <!-- broadcast back -->
+          <path d="M 200 235 Q 100 260 100 200 L 100 50 L 290 50" stroke="#4ade80" fill="none" stroke-width="1.4" stroke-dasharray="2 2"/>
+          <text x="130" y="280" fill="#4ade80" font-family="JetBrains Mono, monospace" font-size="10">broadcast::Receiver per conn (only own fills forwarded)</text>
+        </svg>
+      </div>
+
+      <div class="panel">
+        <h3>The Per-Connection Task</h3>
+        <p>This is where <code>tokio::select!</code> first earns its keep. Each connection task multiplexes <em>two</em> async sources at once:</p>
+        <ul>
+          <li>Incoming command lines from the client socket.</li>
+          <li>Incoming fills from the broadcast channel.</li>
+        </ul>
+        <p>Whichever fires first, handle it, then loop.</p>
+        <div class="callout warn">
+          <strong>Cancellation safety</strong> matters in <code>select!</code>. <code>read_line</code> on a <code>BufReader</code> is cancel-safe. <code>broadcast::Receiver::recv</code> is cancel-safe. Most things on tokio's I/O traits are. If you write your own future, double-check the docs.
+        </div>
+        <h3>Wire protocol — keep it dumb</h3>
+<pre><span class="mono">submit BUY  101 30
+submit SELL 102 10
+cancel 17</span></pre>
+        <p class="muted">Line-delimited, space-separated. Don't reach for serde yet. Don't design a binary protocol yet. You're learning async, not codec design.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Tasks</h3>
+        <ul class="tasks">
+          <li>Bind <code>TcpListener</code> in <code>main</code>. Accept loop: <code>loop { let (sock, _) = listener.accept().await?; tokio::spawn(handle_conn(sock, engine.clone())); }</code>.</li>
+          <li>In <code>handle_conn</code>: split the socket into read/write halves, wrap the read half in <code>BufReader</code>, get a fresh <code>broadcast::Receiver</code> from the engine handle.</li>
+          <li>Loop with <code>select!</code> over: (a) next line from client, (b) next trade from broadcast.</li>
+          <li>Parse the line, call <code>engine.submit/cancel</code>, write the response back to the client.</li>
+          <li>On a trade event, only forward it to this client if they were a party to the trade.
+            <span class="hint">tag orders with a client-id when submitting, so the engine can include it on each trade.</span>
+          </li>
+          <li>Handle connection close cleanly. <code>read_line</code> returning <code>Ok(0)</code> = EOF.</li>
+          <li class="opt">(Optional) <code>tokio::signal::ctrl_c</code> handler for graceful shutdown.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Rust Concepts Used Here</h3>
+        <div class="concepts">
+          <span class="concept">tokio::net::TcpListener</span>
+          <span class="concept">AsyncReadExt / AsyncWriteExt</span>
+          <span class="concept">BufReader::lines</span>
+          <span class="concept">split / into_split</span>
+          <span class="concept">tokio::select!</span>
+          <span class="concept">cancellation safety</span>
+          <span class="concept">graceful shutdown</span>
+        </div>
+        <h3>Done when</h3>
+        <div class="check"><span class="dot"></span> <code>nc localhost 7878</code> works as an interactive client.</div>
+        <div class="check"><span class="dot"></span> Two terminals can both submit orders and see their fills.</div>
+        <div class="check"><span class="dot"></span> Killing one client doesn't disturb the others or the engine.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== PHASE 5 =================== -->
+  <section class="phase">
+    <div class="phase-head">
+      <div class="badge">05</div>
+      <div class="title">
+        <h2>Multi-symbol &amp; Real Concurrency</h2>
+        <div class="goal">One book per symbol. Each book runs in its own task — they match in parallel on multi-core.</div>
+        <div class="chip-row">
+          <span class="chip async">router task</span>
+          <span class="chip async">parallel symbols</span>
+          <span class="chip async">backpressure</span>
+          <span class="chip async">tracing</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel diagram">
+        <svg viewBox="0 0 480 280" width="480">
+          <defs>
+            <marker id="ar6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c9cff"/>
+            </marker>
+          </defs>
+
+          <rect x="180" y="20" width="120" height="46" rx="8" fill="#1d2547" stroke="#a78bfa"/>
+          <text x="240" y="40" text-anchor="middle" fill="#e6e9f5" font-family="-apple-system" font-size="12" font-weight="600">router task</text>
+          <text x="240" y="56" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">HashMap&lt;Symbol, Sender&gt;</text>
+
+          <text x="240" y="84" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="10">incoming cmd · look up sender · forward</text>
+
+          <!-- per symbol engines -->
+          <g font-family="JetBrains Mono, monospace" font-size="11">
+            <rect x="20" y="120" width="100" height="60" rx="8" fill="#161d38" stroke="#7c9cff"/>
+            <text x="70" y="142" text-anchor="middle" fill="#e6e9f5" font-size="12">AAPL</text>
+            <text x="70" y="160" text-anchor="middle" fill="#9aa3c2" font-size="9">engine task</text>
+            <text x="70" y="174" text-anchor="middle" fill="#9aa3c2" font-size="9">own book</text>
+
+            <rect x="140" y="120" width="100" height="60" rx="8" fill="#161d38" stroke="#7c9cff"/>
+            <text x="190" y="142" text-anchor="middle" fill="#e6e9f5" font-size="12">MSFT</text>
+            <text x="190" y="160" text-anchor="middle" fill="#9aa3c2" font-size="9">engine task</text>
+            <text x="190" y="174" text-anchor="middle" fill="#9aa3c2" font-size="9">own book</text>
+
+            <rect x="260" y="120" width="100" height="60" rx="8" fill="#161d38" stroke="#7c9cff"/>
+            <text x="310" y="142" text-anchor="middle" fill="#e6e9f5" font-size="12">BTC</text>
+            <text x="310" y="160" text-anchor="middle" fill="#9aa3c2" font-size="9">engine task</text>
+            <text x="310" y="174" text-anchor="middle" fill="#9aa3c2" font-size="9">own book</text>
+
+            <rect x="380" y="120" width="80" height="60" rx="8" fill="#161d38" stroke="#7c9cff"/>
+            <text x="420" y="142" text-anchor="middle" fill="#e6e9f5" font-size="12">ETH</text>
+            <text x="420" y="160" text-anchor="middle" fill="#9aa3c2" font-size="9">engine task</text>
+          </g>
+
+          <path d="M 220 66 L 80 120" stroke="#7c9cff" fill="none" stroke-width="1.4" marker-end="url(#ar6)"/>
+          <path d="M 230 66 L 195 120" stroke="#7c9cff" fill="none" stroke-width="1.4" marker-end="url(#ar6)"/>
+          <path d="M 250 66 L 305 120" stroke="#7c9cff" fill="none" stroke-width="1.4" marker-end="url(#ar6)"/>
+          <path d="M 260 66 L 415 120" stroke="#7c9cff" fill="none" stroke-width="1.4" marker-end="url(#ar6)"/>
+
+          <text x="240" y="215" text-anchor="middle" fill="#a78bfa" font-family="JetBrains Mono, monospace" font-size="11">independent books → run in parallel on different cores</text>
+          <text x="240" y="240" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="10">bounded mpsc per engine · slow client blocks itself, not others</text>
+        </svg>
+      </div>
+
+      <div class="panel">
+        <h3>Why the Router</h3>
+        <p>
+          Phase 3 had one engine. To scale, you need one engine <em>per symbol</em>:
+          AAPL trades don't interact with BTC trades, so they can match in parallel.
+          The router owns a <code>HashMap&lt;Symbol, mpsc::Sender&lt;Cmd&gt;&gt;</code>
+          and routes each command to the right per-symbol task.
+        </p>
+        <div class="callout">
+          <strong>You can skip the router task itself</strong> by making the handle
+          hold the <code>HashMap</code> directly — every connection task just looks
+          up the right sender. Trade-off: less indirection, but you need
+          <code>Arc&lt;HashMap&gt;</code> or <code>DashMap</code> if you add symbols
+          at runtime.
+        </div>
+        <h3>Backpressure</h3>
+        <p>
+          Switch every channel to <code>mpsc::channel(N)</code> (bounded), not unbounded.
+          A slow engine will eventually fill its inbox; <code>send().await</code> blocks
+          the offending client until the engine catches up. That's the feature.
+        </p>
+        <div class="callout warn">
+          Never use <code>try_send</code> and silently drop. An exchange that drops
+          orders is worse than one that's slow.
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Tasks</h3>
+        <ul class="tasks">
+          <li>Add a <code>symbol</code> field to <code>Order</code>. Update the wire protocol: <code>submit AAPL BUY 101 30</code>.</li>
+          <li>Refactor <code>EngineHandle</code> to either hold an <code>Arc&lt;HashMap&lt;Symbol, mpsc::Sender&lt;Cmd&gt;&gt;&gt;</code> directly, or talk to a router task.</li>
+          <li>Spawn one engine task per symbol at startup. Make the list configurable.</li>
+          <li>Switch all <code>mpsc::unbounded_channel</code> to bounded. Pick a capacity (e.g. 1024) and document why.</li>
+          <li>Add the <code>tracing</code> crate. Instrument <code>submit</code>, <code>match_loop</code>, and connection lifecycle. Use <code>tracing_subscriber::fmt</code>.</li>
+          <li>Write a synthetic load client: spawn 500 tokio tasks that each submit 1000 random orders. Measure throughput and p99 latency.</li>
+          <li class="opt">(Optional) Per-symbol top-of-book published on a <code>watch</code> channel.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Rust Concepts Used Here</h3>
+        <div class="concepts">
+          <span class="concept">bounded mpsc · backpressure</span>
+          <span class="concept">Arc&lt;HashMap&gt;</span>
+          <span class="concept">tokio::watch</span>
+          <span class="concept">tracing / spans</span>
+          <span class="concept">Instant / Duration</span>
+          <span class="concept">multi-threaded runtime</span>
+        </div>
+        <div class="callout tip">
+          <strong>By default</strong> <code>#[tokio::main]</code> uses the multi-threaded
+          runtime, so per-symbol tasks really do run on different cores. You don't
+          need to configure anything. Verify with <code>top -H</code> while load-testing.
+        </div>
+        <h3>Done when</h3>
+        <div class="check"><span class="dot"></span> Load test sustains thousands of orders/sec across multiple symbols.</div>
+        <div class="check"><span class="dot"></span> A slow consumer on one symbol can't stall traffic on other symbols.</div>
+        <div class="check"><span class="dot"></span> <code>tracing</code> logs show interleaved activity across engine tasks.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== PHASE 6 =================== -->
+  <section class="phase">
+    <div class="phase-head">
+      <div class="badge">06</div>
+      <div class="title">
+        <h2>Durability &amp; Recovery <span class="chip" style="margin-left:8px">stretch</span></h2>
+        <div class="goal">Survive a restart. Replay the world from disk. Optional but extremely educational.</div>
+        <div class="chip-row">
+          <span class="chip async">tokio::fs</span>
+          <span class="chip async">spawn_blocking</span>
+          <span class="chip async">serde / bincode</span>
+          <span class="chip async">WAL + snapshots</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h3>The Idea</h3>
+        <p>
+          Before the engine task processes an accepted command, it appends a serialized record to a
+          write-ahead log. On startup, the engine reads the log from disk and replays it
+          before opening for new traffic. Periodically, write a snapshot of the book and truncate the log.
+        </p>
+        <h3>Tasks</h3>
+        <ul class="tasks">
+          <li>Make every command and trade serializable via <code>serde</code>. Use <code>bincode</code> for compactness or JSONL for debuggability.</li>
+          <li>Open an append-only file. Inside the engine task: append the bytes, fsync (or batch fsyncs), then process the command.</li>
+          <li>Write a replay function that runs at startup and returns a rebuilt <code>Engine</code>.</li>
+          <li>Add a snapshot job: every N seconds, serialize the book state, rename-atomic-swap, then truncate the log.</li>
+          <li>Test: kill the process mid-load. Restart. Verify the book matches what should have been there.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Why It's Worth Doing</h3>
+        <div class="callout">
+          This phase teaches the messiest, most realistic part of building real systems
+          in async Rust: when to use <code>tokio::fs</code> vs <code>std::fs</code> inside
+          <code>spawn_blocking</code>, how to keep latency low when writes hit disk,
+          and how to think about atomicity boundaries.
+        </div>
+        <h3>Rust Concepts Used Here</h3>
+        <div class="concepts">
+          <span class="concept">serde::{Serialize, Deserialize}</span>
+          <span class="concept">bincode</span>
+          <span class="concept">tokio::fs::OpenOptions</span>
+          <span class="concept">spawn_blocking</span>
+          <span class="concept">atomic rename</span>
+          <span class="concept">BufWriter flush semantics</span>
+        </div>
+        <h3>Done when</h3>
+        <div class="check"><span class="dot"></span> <code>kill -9</code> the process mid-load. Restart. No order in the WAL is lost; no trade is duplicated.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== FINAL ARCH =================== -->
+  <hr class="sep" />
+  <h2 style="font-size: 1.9rem; margin-bottom: 6px;">End-state Architecture</h2>
+  <p class="muted" style="margin-top: 0;">What you'll have when all six phases are done.</p>
+
+  <div class="panel diagram" style="margin-top: 18px;">
+    <svg viewBox="0 0 900 440" width="100%">
+      <defs>
+        <marker id="arF" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c9cff"/>
+        </marker>
+        <marker id="arG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#4ade80"/>
+        </marker>
+      </defs>
+
+      <!-- clients -->
+      <g font-family="JetBrains Mono, monospace" font-size="11">
+        <rect x="20" y="30"  width="120" height="34" rx="6" fill="#161d38" stroke="#2a3360"/>
+        <text x="80" y="51" text-anchor="middle" fill="#e6e9f5">client A</text>
+        <rect x="20" y="80"  width="120" height="34" rx="6" fill="#161d38" stroke="#2a3360"/>
+        <text x="80" y="101" text-anchor="middle" fill="#e6e9f5">client B</text>
+        <rect x="20" y="130" width="120" height="34" rx="6" fill="#161d38" stroke="#2a3360"/>
+        <text x="80" y="151" text-anchor="middle" fill="#e6e9f5">client C</text>
+        <rect x="20" y="180" width="120" height="34" rx="6" fill="#161d38" stroke="#2a3360"/>
+        <text x="80" y="201" text-anchor="middle" fill="#e6e9f5">client D</text>
+        <text x="80" y="240" text-anchor="middle" fill="#9aa3c2" font-size="9">TCP · line protocol</text>
+      </g>
+
+      <!-- accept + conn tasks -->
+      <rect x="200" y="40" width="180" height="190" rx="10" fill="#1d2547" stroke="#a78bfa"/>
+      <text x="290" y="62" text-anchor="middle" fill="#a78bfa" font-family="JetBrains Mono, monospace" font-size="11">tcp server</text>
+      <text x="290" y="80" text-anchor="middle" fill="#e6e9f5" font-family="-apple-system" font-size="13" font-weight="600">accept loop + N conn tasks</text>
+      <text x="290" y="100" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">spawn per accept</text>
+      <text x="290" y="118" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">select!: read_line vs broadcast</text>
+      <text x="290" y="136" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">parse → route by symbol</text>
+      <text x="290" y="170" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">Arc&lt;HashMap&lt;Symbol, Sender&gt;&gt;</text>
+      <text x="290" y="200" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">forward fills to own client</text>
+
+      <!-- arrows clients -> conns -->
+      <path d="M 140 47  L 200 70"  stroke="#7c9cff" stroke-width="1.4" fill="none" marker-end="url(#arF)"/>
+      <path d="M 140 97  L 200 110" stroke="#7c9cff" stroke-width="1.4" fill="none" marker-end="url(#arF)"/>
+      <path d="M 140 147 L 200 150" stroke="#7c9cff" stroke-width="1.4" fill="none" marker-end="url(#arF)"/>
+      <path d="M 140 197 L 200 200" stroke="#7c9cff" stroke-width="1.4" fill="none" marker-end="url(#arF)"/>
+
+      <!-- per-symbol engines -->
+      <g>
+        <rect x="450" y="40"  width="160" height="60" rx="8" fill="#1d2547" stroke="#7c9cff"/>
+        <text x="530" y="62" text-anchor="middle" fill="#7c9cff" font-family="JetBrains Mono, monospace" font-size="10">engine task — AAPL</text>
+        <text x="530" y="80" text-anchor="middle" fill="#e6e9f5" font-family="-apple-system" font-size="11">Book · match loop</text>
+        <text x="530" y="94" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">bounded mpsc inbox</text>
+
+        <rect x="450" y="110" width="160" height="60" rx="8" fill="#1d2547" stroke="#7c9cff"/>
+        <text x="530" y="132" text-anchor="middle" fill="#7c9cff" font-family="JetBrains Mono, monospace" font-size="10">engine task — MSFT</text>
+        <text x="530" y="150" text-anchor="middle" fill="#e6e9f5" font-family="-apple-system" font-size="11">Book · match loop</text>
+        <text x="530" y="164" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">bounded mpsc inbox</text>
+
+        <rect x="450" y="180" width="160" height="60" rx="8" fill="#1d2547" stroke="#7c9cff"/>
+        <text x="530" y="202" text-anchor="middle" fill="#7c9cff" font-family="JetBrains Mono, monospace" font-size="10">engine task — BTC</text>
+        <text x="530" y="220" text-anchor="middle" fill="#e6e9f5" font-family="-apple-system" font-size="11">Book · match loop</text>
+        <text x="530" y="234" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">bounded mpsc inbox</text>
+      </g>
+
+      <!-- conn -> engines -->
+      <path d="M 380 90  L 450 70"  stroke="#7c9cff" stroke-width="1.4" fill="none" marker-end="url(#arF)"/>
+      <path d="M 380 130 L 450 140" stroke="#7c9cff" stroke-width="1.4" fill="none" marker-end="url(#arF)"/>
+      <path d="M 380 180 L 450 210" stroke="#7c9cff" stroke-width="1.4" fill="none" marker-end="url(#arF)"/>
+
+      <!-- broadcast back -->
+      <path d="M 610 70  Q 700 30 700 240 Q 700 280 380 220" stroke="#4ade80" stroke-dasharray="3 3" fill="none" stroke-width="1.4" marker-end="url(#arG)"/>
+      <text x="690" y="120" fill="#4ade80" font-family="JetBrains Mono, monospace" font-size="10">broadcast::Sender&lt;Trade&gt;</text>
+      <text x="690" y="138" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">per-symbol fan-out</text>
+
+      <!-- WAL -->
+      <rect x="450" y="280" width="160" height="70" rx="8" fill="#161d38" stroke="#a78bfa" stroke-dasharray="4 3"/>
+      <text x="530" y="302" text-anchor="middle" fill="#a78bfa" font-family="JetBrains Mono, monospace" font-size="10">durability (phase 6)</text>
+      <text x="530" y="320" text-anchor="middle" fill="#e6e9f5" font-family="-apple-system" font-size="11">WAL + snapshots</text>
+      <text x="530" y="336" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">spawn_blocking · serde · fsync</text>
+
+      <path d="M 530 240 L 530 280" stroke="#a78bfa" stroke-dasharray="2 2" stroke-width="1.4" fill="none" marker-end="url(#arF)"/>
+
+      <!-- tracing -->
+      <rect x="200" y="280" width="180" height="70" rx="8" fill="#161d38" stroke="#fbbf24" stroke-dasharray="4 3"/>
+      <text x="290" y="302" text-anchor="middle" fill="#fbbf24" font-family="JetBrains Mono, monospace" font-size="10">observability</text>
+      <text x="290" y="320" text-anchor="middle" fill="#e6e9f5" font-family="-apple-system" font-size="11">tracing crate</text>
+      <text x="290" y="336" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">spans + structured logs</text>
+
+      <!-- ctrl-c -->
+      <rect x="700" y="280" width="180" height="70" rx="8" fill="#161d38" stroke="#9aa3c2" stroke-dasharray="4 3"/>
+      <text x="790" y="302" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="10">control plane</text>
+      <text x="790" y="320" text-anchor="middle" fill="#e6e9f5" font-family="-apple-system" font-size="11">graceful shutdown</text>
+      <text x="790" y="336" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="9">tokio::signal · CancellationToken</text>
+
+      <!-- footer -->
+      <text x="450" y="400" text-anchor="middle" fill="#9aa3c2" font-family="JetBrains Mono, monospace" font-size="11">multi-threaded tokio runtime · zero shared mutable state · message-passing throughout</text>
+    </svg>
+  </div>
+
+  <!-- TIPS / PITFALLS -->
+  <hr class="sep" />
+  <h2 style="font-size: 1.9rem;">Pitfalls You'll Hit (and How to Climb Out)</h2>
+  <div class="footer-grid">
+    <div class="panel">
+      <h4>"future cannot be sent between threads safely"</h4>
+      <p class="muted">You're holding a non-<code>Send</code> type across an <code>.await</code>. Common culprit: <code>std::sync::MutexGuard</code>, or a <code>Rc</code>. Either drop it before the await or use <code>tokio::sync::Mutex</code>.</p>
+    </div>
+    <div class="panel">
+      <h4>Borrow checker fights inside the match loop</h4>
+      <p class="muted">You can't mutate a <code>BTreeMap</code> entry while still holding an iterator over the map. Pop the front order out, mutate locally, decide what to push back. Don't try to be clever.</p>
+    </div>
+    <div class="panel">
+      <h4>Channel fills up and everything stalls</h4>
+      <p class="muted">That's backpressure working as intended. Increase capacity if it's a sustained issue; profile the engine task if it can't keep up. Don't switch to unbounded unless you can prove the producer is rate-limited.</p>
+    </div>
+    <div class="panel">
+      <h4>Lost trades after a panic</h4>
+      <p class="muted">A panic in a tokio task only kills that task — other tasks keep running with stale handles. Add <code>JoinSet</code> or supervise with <code>tokio::select!</code> on a watcher channel. Log panics explicitly.</p>
+    </div>
+    <div class="panel">
+      <h4>"my select! arm cancelled mid-write"</h4>
+      <p class="muted">Not all futures are cancellation-safe. Anything that writes to a socket or advances a stateful parser typically <em>is not</em>. Read the tokio docs for the specific method before using it in a <code>select!</code>.</p>
+    </div>
+    <div class="panel">
+      <h4>It compiles but does the wrong thing</h4>
+      <p class="muted">Write property tests: random sequences of orders → invariants must hold (no negative qty, best_bid &lt; best_ask, trades balance). The borrow checker won't catch logic bugs.</p>
+    </div>
+  </div>
+
+  <!-- RESOURCES -->
+  <hr class="sep" />
+  <h2 style="font-size: 1.9rem;">Resources Worth Bookmarking</h2>
+  <div class="footer-grid">
+    <div class="panel">
+      <h4>Async fundamentals</h4>
+      <ul>
+        <li>Tokio tutorial (the official one)</li>
+        <li>Alice Ryhl: "Actors with Tokio"</li>
+        <li>"Async Rust in Three Parts" (Jon Gjengset)</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h4>Channels &amp; patterns</h4>
+      <ul>
+        <li>tokio::sync module docs (read all of them once)</li>
+        <li>"Cancellation safety" section in tokio::select! docs</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h4>For when you're curious</h4>
+      <ul>
+        <li>"What color is your function?" (background reading)</li>
+        <li>Tokio internals: the multi-threaded scheduler post</li>
+        <li>LMAX Disruptor whitepaper (for when phase 5 isn't fast enough)</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h4>Crates you'll probably reach for</h4>
+      <ul>
+        <li><code>tokio</code>, <code>tokio-util</code></li>
+        <li><code>tracing</code>, <code>tracing-subscriber</code></li>
+        <li><code>serde</code>, <code>bincode</code> (phase 6)</li>
+        <li><code>anyhow</code> or <code>thiserror</code> for error types</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="muted" style="margin-top: 48px; text-align: center; font-size: 0.85rem;">
+    each phase is a stopping point. don't move on until the previous phase runs and passes its tests.
+  </p>
+
+</div>
+</body>
+</html>
