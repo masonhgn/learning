@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python md_to_tts.py concept_primer.md)",
+      "Bash(python md_to_tts.py codebase_tour.md)",
+      "Bash(python md_to_tts.py intel_pt_primer.md)"
+    ]
+  }
+}
