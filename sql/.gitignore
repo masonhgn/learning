@@ -1,0 +1,4 @@
+sqlquest.db
+progress.json
+.sqlquest_history
+__pycache__/

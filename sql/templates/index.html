@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQLQuest</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="titlebar">
+  <div class="brand"><span class="logo">▦</span> SQLQuest</div>
+  <div class="progress" title="challenges solved">
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <span id="progress-text">0 / 0</span>
+  </div>
+  <div class="titlebar-actions">
+    <button class="btn ghost" id="btn-schema" title="show every table's columns">Schema</button>
+    <button class="btn ghost" id="btn-reset" title="erase all progress">Reset progress</button>
+  </div>
+</header>
+
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="workspace">
+    <section class="task">
+      <div class="task-head">
+        <span class="level-chip" id="level-chip"></span>
+        <h1 id="task-title"></h1>
+        <span class="tag" id="task-tags"></span>
+      </div>
+      <p class="prompt" id="task-prompt"></p>
+      <div class="task-actions">
+        <button class="btn" id="btn-lesson">Lesson</button>
+        <button class="btn" id="btn-hint">Hint</button>
+        <button class="btn" id="btn-expected">Expected output</button>
+        <button class="btn" id="btn-solution">Solution</button>
+      </div>
+      <div class="panel" id="panel" hidden></div>
+    </section>
+
+    <section class="editor-wrap">
+      <div class="editor-bar">
+        <span class="editor-label">Query</span>
+        <span class="muted small">Ctrl+Enter to run · Ctrl+Space to autocomplete</span>
+        <span class="spacer"></span>
+        <button class="btn" id="btn-prev" title="previous challenge">‹ Prev</button>
+        <button class="btn" id="btn-next" title="next challenge">Next ›</button>
+        <button class="btn primary" id="btn-run">▶ Run</button>
+      </div>
+      <div class="editor" id="editor"></div>
+    </section>
+
+    <div class="status" id="status" hidden></div>
+
+    <div class="splitter" id="splitter" title="drag to resize"></div>
+
+    <div class="formula-bar">
+      <div class="name-box" id="name-box"></div>
+      <div class="fx">fx</div>
+      <div class="formula-value" id="formula-value"></div>
+    </div>
+
+    <section class="sheet" id="sheet"></section>
+
+    <nav class="sheet-tabs">
+      <div class="tabs" id="tabs"></div>
+      <div class="add-tab">
+        <button class="tab-add" id="btn-add-tab" title="open another table">+</button>
+        <div class="menu" id="add-menu" hidden></div>
+      </div>
+      <span class="spacer"></span>
+      <input class="filter" id="filter" type="search" placeholder="Filter rows…" autocomplete="off">
+      <span class="row-count" id="row-count"></span>
+    </nav>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/sql-hint.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
