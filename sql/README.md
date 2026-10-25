@@ -12,7 +12,7 @@ The prompt highlights SQL as you type, Tab completes table names, column names a
 
 ## How it works
 
-- 57 challenges across 10 levels, from `SELECT *` to window functions, data changes and multi-step boss problems. Each level starts with a short lesson.
+- 78 challenges across 10 levels, from `SELECT *` to window functions, data changes and multi-step boss problems. Each level starts with a short lesson.
 - Your query is checked by comparing its result to a reference solution's result, so any correct query passes. Column names and aliases are not checked. Column order is, and so is row order when the challenge asks for sorting.
 - Every attempt runs on a fresh in-memory copy of the data, so `DELETE FROM customers;` can't break anything. Queries that take longer than 5 seconds are stopped.
 - Wrong answers cost nothing and still show their output, so exploratory queries work as normal attempts.

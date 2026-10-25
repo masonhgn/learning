@@ -110,6 +110,12 @@ LEFT JOIN keeps every row from the left table, filling NULLs when there is no ma
   LEFT JOIN orders o ON o.customer_id = c.id;
 
 Find rows with no match ("anti join"): LEFT JOIN then WHERE right_side.id IS NULL.
+With a LEFT JOIN, a filter on the right table belongs in ON, not WHERE:
+
+  LEFT JOIN orders o ON o.customer_id = c.id AND o.status = 'shipped'
+
+In WHERE it would throw away the NULL rows and turn it back into an inner join.
+JOIN and GROUP BY combine: join first, then group the joined rows.
 A table can join to itself (self join), e.g. employees to their manager.
 You can chain several JOINs in one query.""",
     },
@@ -484,6 +490,51 @@ CHALLENGES = [
         "ordered": True,
         "hints": ["You can GROUP BY an expression, not just a column.", "SUBSTR(order_date, 1, 4) is the first 4 characters: the year."],
     },
+    {
+        "key": "group_stock_value",
+        "level": 3,
+        "title": "Warehouse worth",
+        "prompt": "For each category, show category and stock_value: the total of price times stock, rounded to 2. Most valuable category first.",
+        "solution": "SELECT category, ROUND(SUM(price * stock), 2) AS stock_value FROM products GROUP BY category ORDER BY stock_value DESC;",
+        "ordered": True,
+        "hints": ["Multiply inside the SUM, one row at a time: SUM(price * stock).", "ORDER BY stock_value DESC"],
+    },
+    {
+        "key": "group_spread",
+        "level": 3,
+        "title": "Price spread",
+        "prompt": "For each category, show category, cheapest, priciest and spread (priciest minus cheapest, rounded to 2). Widest spread first.",
+        "solution": "SELECT category, MIN(price) AS cheapest, MAX(price) AS priciest, ROUND(MAX(price) - MIN(price), 2) AS spread FROM products GROUP BY category ORDER BY spread DESC;",
+        "ordered": True,
+        "hints": ["You can do arithmetic between aggregates: MAX(price) - MIN(price)."],
+    },
+    {
+        "key": "having_two_conditions",
+        "level": 3,
+        "title": "Packed orders",
+        "prompt": "Using order_items, show order_id, line_items (number of rows) and units (total quantity) for orders with exactly 4 line items AND at least 15 units. Sort by order_id.",
+        "solution": "SELECT order_id, COUNT(*) AS line_items, SUM(quantity) AS units FROM order_items GROUP BY order_id HAVING COUNT(*) = 4 AND SUM(quantity) >= 15 ORDER BY order_id;",
+        "ordered": True,
+        "hints": ["COUNT(*) counts line items, SUM(quantity) counts units.", "HAVING can combine conditions with AND, just like WHERE."],
+    },
+    {
+        "key": "group_year_status",
+        "level": 3,
+        "title": "Status by year",
+        "prompt": "Show year (like '2025'), status and order_count for every year and status combination. Sort by year, then status.",
+        "solution": "SELECT SUBSTR(order_date, 1, 4) AS year, status, COUNT(*) AS order_count FROM orders GROUP BY year, status ORDER BY year, status;",
+        "ordered": True,
+        "hints": ["Group by two things: an expression and a column.", "GROUP BY year, status"],
+    },
+    {
+        "key": "where_having",
+        "level": 3,
+        "title": "Regulars",
+        "prompt": "Show customer_id and order_count for customers with at least 10 orders that were not cancelled. Most orders first, ties by customer_id.",
+        "solution": "SELECT customer_id, COUNT(*) AS order_count FROM orders WHERE status <> 'cancelled' GROUP BY customer_id HAVING COUNT(*) >= 10 ORDER BY order_count DESC, customer_id;",
+        "ordered": True,
+        "hints": ["Cancelled orders should be thrown away before counting. Which clause runs before grouping?", "WHERE for the rows, HAVING for the groups. You need both."],
+    },
     #level 5 joins
     {
         "key": "inner_join",
@@ -502,12 +553,57 @@ CHALLENGES = [
         "hints": ["Join employees.department_id to departments.id."],
     },
     {
+        "key": "join_receipt",
+        "level": 4,
+        "title": "Receipt",
+        "prompt": "For order 1, show each item's product name, quantity, unit_price and line_total (quantity times unit_price, rounded to 2). Sort by product name.",
+        "solution": "SELECT p.name, oi.quantity, oi.unit_price, ROUND(oi.quantity * oi.unit_price, 2) AS line_total FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = 1 ORDER BY p.name;",
+        "ordered": True,
+        "hints": ["order_items.product_id points at products.id.", "WHERE comes after the JOIN: JOIN ... ON ... WHERE oi.order_id = 1"],
+    },
+    {
+        "key": "join_where",
+        "level": 4,
+        "title": "Holiday rush",
+        "prompt": "For orders placed in December 2025, show the order id, order_date and the first_name of the employee who handled it. Orders with no employee should not appear. Sort by order id.",
+        "solution": "SELECT o.id, o.order_date, e.first_name FROM orders o JOIN employees e ON e.id = o.employee_id WHERE o.order_date LIKE '2025-12%' ORDER BY o.id;",
+        "ordered": True,
+        "hints": ["orders.employee_id points at employees.id.", "An inner JOIN already drops orders whose employee_id is NULL."],
+    },
+    {
+        "key": "join_group",
+        "level": 4,
+        "title": "Department payroll",
+        "prompt": "Show each department's name, headcount and total_salary. Biggest payroll first.",
+        "solution": "SELECT d.name, COUNT(*) AS headcount, SUM(e.salary) AS total_salary FROM departments d JOIN employees e ON e.department_id = d.id GROUP BY d.id, d.name ORDER BY total_salary DESC;",
+        "ordered": True,
+        "hints": ["Join first, then GROUP BY the department.", "GROUP BY d.id, d.name is safest: two departments could share a name."],
+    },
+    {
+        "key": "join_group_having",
+        "level": 4,
+        "title": "Sales leaderboard",
+        "prompt": "Show first_name, last_name and orders_handled for employees who handled at least 40 orders. Most orders first, ties by last_name.",
+        "solution": "SELECT e.first_name, e.last_name, COUNT(*) AS orders_handled FROM employees e JOIN orders o ON o.employee_id = e.id GROUP BY e.id, e.first_name, e.last_name HAVING COUNT(*) >= 40 ORDER BY orders_handled DESC, e.last_name;",
+        "ordered": True,
+        "hints": ["employees JOIN orders, one group per employee.", "Filter on the count with HAVING."],
+    },
+    {
         "key": "left_join_count",
         "level": 4,
         "title": "Including the window shoppers",
         "prompt": "For EVERY customer (even those with zero orders), show id, first_name and order_count.",
         "solution": "SELECT c.id, c.first_name, COUNT(o.id) AS order_count FROM customers c LEFT JOIN orders o ON o.customer_id = c.id GROUP BY c.id, c.first_name;",
         "hints": ["An inner JOIN drops customers with no orders. Which join keeps them?", "COUNT(*) would count 1 for a customer with no orders. COUNT(o.id) counts 0."],
+    },
+    {
+        "key": "left_join_on_filter",
+        "level": 4,
+        "title": "Quiet year",
+        "prompt": "For EVERY customer, show id, first_name and orders_2025: how many orders they placed in 2025. Customers with no 2025 orders must still appear, with 0. Sort by id.",
+        "solution": "SELECT c.id, c.first_name, COUNT(o.id) AS orders_2025 FROM customers c LEFT JOIN orders o ON o.customer_id = c.id AND o.order_date LIKE '2025%' GROUP BY c.id, c.first_name ORDER BY c.id;",
+        "ordered": True,
+        "hints": ["Putting the date test in WHERE throws away the NULL rows the LEFT JOIN just added.", "Move the condition into the ON clause: ON o.customer_id = c.id AND o.order_date LIKE '2025%'"],
     },
     {
         "key": "anti_join",
@@ -518,12 +614,30 @@ CHALLENGES = [
         "hints": ["LEFT JOIN products to order_items.", "Products with no match have NULL in every order_items column."],
     },
     {
+        "key": "left_join_three",
+        "level": 4,
+        "title": "Sales floor",
+        "prompt": "For every employee in the 'Sales' department, show first_name, last_name and orders_handled, including anyone who handled none. Fewest orders first, ties by last_name.",
+        "solution": "SELECT e.first_name, e.last_name, COUNT(o.id) AS orders_handled FROM employees e JOIN departments d ON d.id = e.department_id LEFT JOIN orders o ON o.employee_id = e.id WHERE d.name = 'Sales' GROUP BY e.id, e.first_name, e.last_name ORDER BY orders_handled, e.last_name;",
+        "ordered": True,
+        "hints": ["Inner JOIN departments to find Sales people, then LEFT JOIN orders so nobody drops out.", "Filtering on d.name in WHERE is fine here: it is on the inner joined side.", "COUNT(o.id), not COUNT(*)."],
+    },
+    {
         "key": "self_join",
         "level": 4,
         "title": "Who's your boss",
         "prompt": "Show two columns: employee (the employee's first_name) and manager (their manager's first_name). Skip employees with no manager.",
         "solution": "SELECT e.first_name AS employee, m.first_name AS manager FROM employees e JOIN employees m ON m.id = e.manager_id;",
         "hints": ["Join the employees table to itself with two different aliases.", "e.manager_id = m.id"],
+    },
+    {
+        "key": "self_join_group",
+        "level": 4,
+        "title": "Span of control",
+        "prompt": "For every manager, show first_name, last_name and direct_reports (how many employees report to them). Most reports first, ties by last_name.",
+        "solution": "SELECT m.first_name, m.last_name, COUNT(*) AS direct_reports FROM employees e JOIN employees m ON m.id = e.manager_id GROUP BY m.id, m.first_name, m.last_name ORDER BY direct_reports DESC, m.last_name;",
+        "ordered": True,
+        "hints": ["Same self join as before, but now group by the manager side.", "GROUP BY m.id, m.first_name, m.last_name"],
     },
     {
         "key": "multi_join",
@@ -537,6 +651,22 @@ JOIN orders o ON o.id = oi.order_id
 WHERE {NOT_CANCELLED}
 GROUP BY p.category;""",
         "hints": ["You need three tables: order_items, products (for category), orders (for status).", "Chain two JOINs, filter with WHERE, then GROUP BY."],
+    },
+    {
+        "key": "four_table_join",
+        "level": 4,
+        "title": "Bookworms abroad",
+        "prompt": "Show country and books_sold (total quantity of 'Books' category products) per customer country, ignoring cancelled orders. Most books first.",
+        "solution": f"""SELECT c.country, SUM(oi.quantity) AS books_sold
+FROM customers c
+JOIN orders o ON o.customer_id = c.id
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+WHERE p.category = 'Books' AND {NOT_CANCELLED}
+GROUP BY c.country
+ORDER BY books_sold DESC;""",
+        "ordered": True,
+        "hints": ["Four tables: customers (country), orders (status), order_items (quantity), products (category).", "Walk the keys: customers -> orders -> order_items -> products."],
     },
     {
         "key": "top_customers",
