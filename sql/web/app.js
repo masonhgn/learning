@@ -765,4 +765,35 @@ async function init() {
   enter(S.index, { lesson: first === S.index && !S.progress.solved.includes(current().key) });
 }
 
-init().catch((e) => setStatus("error", "✗ Error", `Couldn't load: ${esc(e.message)}`));
+//password gate. this only keeps casual visitors out: the site's files are public, so it is not real security
+const PASSWORD_SHA256 = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
+const UNLOCK_KEY = "sqlquest:unlocked";
+
+async function sha256(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function unlock() {
+  if (storage(UNLOCK_KEY) === PASSWORD_SHA256) return Promise.resolve();
+  const gate = $("gate");
+  gate.hidden = false;
+  $("gate-password").focus();
+  return new Promise((resolve) => {
+    $("gate-form").onsubmit = async (e) => {
+      e.preventDefault();
+      if (await sha256($("gate-password").value) === PASSWORD_SHA256) {
+        storage(UNLOCK_KEY, PASSWORD_SHA256);
+        gate.hidden = true;
+        resolve();
+      } else {
+        $("gate-error").hidden = false;
+        $("gate-password").select();
+      }
+    };
+  });
+}
+
+unlock()
+  .then(init)
+  .catch((e) => setStatus("error", "✗ Error", `Couldn't load: ${esc(e.message)}`));

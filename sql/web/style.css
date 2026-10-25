@@ -423,3 +423,11 @@ table.grid {
 @media (prefers-reduced-motion: reduce) {
   .status.correct.flash, .editor-wrap.flash { animation: none; }
 }
+
+/* password gate */
+
+.gate { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; background: var(--page); padding: 16px; }
+.gate-box { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 300px; padding: 24px; background: var(--bg); border: 1px solid var(--line-strong); }
+.gate-box .brand { font-size: 20px; margin-bottom: 6px; }
+.gate-box input { font: inherit; padding: 6px 10px; border: 1px solid var(--line-strong); background: var(--cell); }
+.gate-error { color: #b3261e; font-size: 15px; }

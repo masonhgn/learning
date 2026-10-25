@@ -10,6 +10,16 @@
 </head>
 <body>
 
+<div class="gate" id="gate" hidden>
+  <form class="gate-box" id="gate-form">
+    <div class="brand"><span class="logo">▦</span> SQLQuest</div>
+    <label for="gate-password">Password</label>
+    <input type="password" id="gate-password" autocomplete="current-password" required>
+    <div class="gate-error" id="gate-error" hidden>Wrong password.</div>
+    <button class="btn primary" type="submit">Enter</button>
+  </form>
+</div>
+
 <header class="titlebar">
   <div class="brand"><span class="logo">▦</span> SQLQuest</div>
   <div class="progress" title="challenges solved">
