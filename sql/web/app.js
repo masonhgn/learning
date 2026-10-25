@@ -24,14 +24,6 @@ const letters = (i) => { let s = ""; i += 1; while (i) { s = String.fromCharCode
 const current = () => S.challenges[S.index];
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-async function api(path, body) {
-  const opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
-  const res = await fetch(path, opts);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `request failed (${res.status})`);
-  return data;
-}
-
 function storage(key, value) {
   try {
     if (value === undefined) return localStorage.getItem(key);
@@ -39,7 +31,122 @@ function storage(key, value) {
   } catch (e) { return null; }
 }
 
-//drafts are a per-browser convenience; solved progress lives in progress.json on the server
+//engine: sql runs in a web worker (engine.js) so a runaway query can be stopped by killing it
+
+const QUERY_TIMEOUT = 5000;
+let worker, workerReady, nextCall = 0;
+const pending = new Map();
+
+function startWorker() {
+  worker = new Worker("engine.js");
+  worker.onmessage = ({ data }) => {
+    const p = pending.get(data.id);
+    if (!p) return;
+    pending.delete(data.id);
+    clearTimeout(p.timer);
+    if (data.error !== undefined) p.reject(new Error(data.error));
+    else p.resolve(data.value);
+  };
+  workerReady = call("init", { dbUrl: "sqlquest.db", challenges: S.challenges });
+}
+
+function call(op, args, timeout) {
+  return new Promise((resolve, reject) => {
+    const id = nextCall++;
+    const p = { resolve, reject };
+    if (timeout) p.timer = setTimeout(() => {
+      pending.delete(id);
+      worker.terminate();
+      for (const q of pending.values()) { clearTimeout(q.timer); q.reject(new Error("the engine was restarted")); }
+      pending.clear();
+      startWorker();
+      reject(new Error(`query took longer than ${QUERY_TIMEOUT / 1000}s and was stopped`));
+    }, timeout);
+    pending.set(id, p);
+    worker.postMessage({ id, op, args });
+  });
+}
+
+async function engine(op, args, timeout) {
+  await workerReady;
+  return call(op, args, timeout);
+}
+
+//progress lives in this browser's localStorage, in the same format as the terminal version's progress.json
+
+const PROGRESS_KEY = "sqlquest:progress";
+
+function loadProgress() {
+  let data = {};
+  try { data = JSON.parse(storage(PROGRESS_KEY)) || {}; } catch (e) {}
+  const keys = new Set(S.challenges.map((c) => c.key));
+  const solved = new Set((data.solved || []).filter((k) => keys.has(k)));
+  let index = Math.min(firstUnsolved(solved), S.challenges.length - 1);
+  const i = S.challenges.findIndex((c) => c.key === data.current);
+  if (i >= 0) index = i;
+  return { solved, index };
+}
+
+function saveProgress(solved, index) {
+  storage(PROGRESS_KEY, JSON.stringify({ solved: [...solved].sort(), current: S.challenges[index].key }, null, 2));
+  return progressJson(solved, index);
+}
+
+function firstUnsolved(solved) {
+  const i = S.challenges.findIndex((c) => !solved.has(c.key));
+  return i < 0 ? S.challenges.length : i;
+}
+
+function progressJson(solved, index) {
+  return { solved: [...solved].sort(), current: index, first_unsolved: firstUnsolved(solved) };
+}
+
+async function runChallenge(index, sql) {
+  const out = await engine("run", { index, sql }, QUERY_TIMEOUT).catch((e) => ({
+    result: null, after: null, changes: 0, modified: {}, status: "error", message: e.message,
+    tip: "Usually a JOIN without an ON clause, which pairs every row with every other row.",
+  }));
+  if (out.status !== "correct") return out;
+  const ch = S.challenges[index];
+  const { solved } = loadProgress();
+  const firstTime = !solved.has(ch.key);
+  solved.add(ch.key);
+  const levelDone = S.challenges.every((c) => c.level !== ch.level || solved.has(c.key));
+  return {
+    ...out,
+    solution: ch.solution,
+    level_complete: firstTime && levelDone,
+    all_complete: solved.size === S.challenges.length,
+    progress: saveProgress(solved, index),
+  };
+}
+
+function exportProgress() {
+  const { solved, index } = loadProgress();
+  const text = JSON.stringify({ solved: [...solved].sort(), current: S.challenges[index].key }, null, 2);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text + "\n"], { type: "application/json" }));
+  a.download = "progress.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function importProgress(file) {
+  let data;
+  try { data = JSON.parse(await file.text()); } catch (e) { data = null; }
+  if (!data || !Array.isArray(data.solved)) {
+    setStatus("error", "✗ Import", "That file isn't a sqlquest progress.json.");
+    return;
+  }
+  storage(PROGRESS_KEY, JSON.stringify(data));
+  const { solved, index } = loadProgress();
+  S.progress = progressJson(solved, index);
+  renderProgress();
+  enter(index);
+  setStatus("info", "Imported", `${plural(solved.size, "challenge")} marked solved.`);
+}
+
+//drafts are a per-browser convenience, like progress
 
 //S.draftFor is the challenge whose draft is in the editor, so switching never writes one challenge's text into another's slot
 const draftKey = (key) => `sqlquest:draft:${key}`;
@@ -145,8 +252,7 @@ function renderPanel() {
     } else {
       p.innerHTML = `<h3>Solution</h3><p>Reveal a reference answer? You'll still need to type it in to pass.</p><button class="btn" id="reveal">Reveal solution</button>`;
       $("reveal").onclick = async () => {
-        const data = await api(`/api/solution/${S.index}`);
-        S.solution = { index: S.index, sql: data.solution };
+        S.solution = { index: S.index, sql: current().solution };
         renderPanel();
       };
     }
@@ -173,6 +279,68 @@ function setStatus(kind, badge, html) {
   el.hidden = false;
   el.className = `status ${kind}`;
   el.innerHTML = `<span class="badge">${esc(badge)}</span><div class="body">${html}</div>`;
+}
+
+//green flash and confetti on a correct answer
+
+function flash(el) {
+  el.classList.remove("flash");
+  void el.offsetWidth;  //restart the animation if it is already applied
+  el.classList.add("flash");
+  el.addEventListener("animationend", () => el.classList.remove("flash"), { once: true });
+}
+
+function celebrate(big) {
+  flash($("status"));
+  flash(document.querySelector(".editor-wrap"));
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) confetti(big ? 260 : 120);
+}
+
+function confetti(count) {
+  const canvas = document.createElement("canvas");
+  canvas.id = "confetti";
+  document.body.appendChild(canvas);
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = innerWidth * dpr;
+  canvas.height = innerHeight * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  const colors = ["#1e7f45", "#3cb371", "#7fd49a", "#f4c542", "#e8573f", "#3b82f6", "#a855f7"];
+  //two bursts from the bottom corners, aimed up and inward
+  const bits = Array.from({ length: count }, (_, i) => {
+    const left = i % 2 === 0;
+    const angle = (left ? -60 : -120) * Math.PI / 180 + (Math.random() - 0.5) * 0.9;
+    const speed = 9 + Math.random() * 9;
+    return {
+      x: left ? 0 : innerWidth, y: innerHeight * 0.9,
+      vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
+      rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    };
+  });
+  const start = performance.now();
+  function frame(now) {
+    const t = now - start;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    ctx.globalAlpha = Math.max(0, Math.min(1, (3000 - t) / 800));
+    for (const b of bits) {
+      b.vy += 0.25;
+      b.vx *= 0.99;
+      b.x += b.vx;
+      b.y += b.vy;
+      b.rot += b.vr;
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.rot);
+      ctx.fillStyle = b.color;
+      ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h * Math.cos(b.rot * 2));
+      ctx.restore();
+    }
+    if (t < 3000) requestAnimationFrame(frame);
+    else canvas.remove();
+  }
+  requestAnimationFrame(frame);
 }
 
 //sheet tabs
@@ -245,7 +413,7 @@ function renderSheet() {
   if (id.startsWith("t:") && !gridFor(id)) {
     const name = id.slice(2);
     sheet.innerHTML = `<div class="empty">Loading ${esc(name)}…</div>`;
-    api(`/api/table/${encodeURIComponent(name)}`).then((g) => { S.tableCache[name] = g; if (S.active === id) renderSheet(); });
+    engine("table", { name }).then((g) => { S.tableCache[name] = g; if (S.active === id) renderSheet(); });
     return;
   }
   const g = gridFor(id);
@@ -272,7 +440,7 @@ function renderSheet() {
   if (id.startsWith("t:") && S.modified[id.slice(2)] && S.tableCache[id.slice(2)]) {
     pristine = new Set(S.tableCache[id.slice(2)].rows.map((r) => JSON.stringify(r)));
   } else if (id.startsWith("t:") && S.modified[id.slice(2)]) {
-    api(`/api/table/${encodeURIComponent(id.slice(2))}`).then((t) => { S.tableCache[id.slice(2)] = t; if (S.active === id) renderSheet(); });
+    engine("table", { name: id.slice(2) }).then((t) => { S.tableCache[id.slice(2)] = t; if (S.active === id) renderSheet(); });
   }
 
   const types = {};
@@ -371,7 +539,7 @@ function enter(index, { lesson } = {}) {
   renderTabs();
   renderSheet();
   cm.focus();
-  api("/api/goto", { index }).then((d) => { S.progress = d.progress; }).catch(() => {});
+  S.progress = saveProgress(loadProgress().solved, index);
 }
 
 async function run() {
@@ -382,7 +550,7 @@ async function run() {
   $("btn-run").disabled = true;
   let d;
   try {
-    d = await api("/api/run", { index: S.index, sql });
+    d = await runChallenge(S.index, sql);
   } catch (e) {
     setStatus("error", "✗ Error", esc(e.message));
     return;
@@ -415,6 +583,7 @@ async function run() {
     html += `<pre>${esc(d.solution)}</pre><div class="tip">One way to write it.</div>`;
     if (S.index + 1 < S.challenges.length) html += `<div style="margin-top:6px"><button class="btn primary" id="go-next">Next challenge ›</button></div>`;
     setStatus("correct", "✓ Correct", html);
+    celebrate(d.level_complete);
     const goNext = $("go-next");
     if (goNext) goNext.onclick = () => enter(S.index + 1);
     renderSidebar();
@@ -435,7 +604,7 @@ async function run() {
 
 async function showExpected() {
   try {
-    S.expected = await api(`/api/expected/${S.index}`);
+    S.expected = await engine("expected", { index: S.index });
   } catch (e) {
     setStatus("error", "✗ Error", esc(e.message));
     return;
@@ -472,9 +641,17 @@ function bind() {
     resetArmed = null;
     btn.textContent = "Reset progress";
     btn.classList.remove("on");
-    S.progress = (await api("/api/reset", {})).progress;
+    S.progress = saveProgress(new Set(), 0);
     renderProgress();
     enter(0, { lesson: true });
+  };
+
+  $("btn-export").onclick = exportProgress;
+  $("btn-import").onclick = () => $("import-file").click();
+  $("import-file").onchange = (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (file) importProgress(file);
   };
 
   $("sidebar").onclick = (e) => {
@@ -552,9 +729,13 @@ function bind() {
 }
 
 async function init() {
-  const data = await api("/api/state");
-  Object.assign(S, data);
-  S.index = S.progress.current;
+  const res = await fetch("data.json");
+  if (!res.ok) throw new Error(`data.json (${res.status})`);
+  Object.assign(S, await res.json());
+  startWorker();
+  const { solved, index } = loadProgress();
+  S.progress = progressJson(solved, index);
+  S.index = index;
 
   const hintTables = {};
   for (const [t, cols] of Object.entries(S.schema)) hintTables[t] = cols.map((c) => c.name);

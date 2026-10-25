@@ -31,9 +31,11 @@ Challenges live in `challenges.py`, checking logic in `engine.py`, and the data 
 
 ## Web version
 
+The web version is a static site that runs entirely in the browser: SQLite runs client side via [sql.js](https://sql.js.org) in a web worker, so it can be hosted on GitHub Pages. Pushing to `main` deploys it (see `.github/workflows/sqlquest-pages.yml` at the repo root). To run it locally:
+
 ```
-pip install flask
-python app.py
+python3 build_web.py
+python3 -m http.server 8000 -d web
 ```
 
-Then open http://localhost:5000. It uses the same challenges, checker and `progress.json` as the terminal version, so you can switch between them. The page has the challenge list on the left, a SQL editor (Ctrl+Enter runs, Ctrl+Space autocompletes), and a spreadsheet-style grid with sheet tabs along the bottom: `Result`, the tables the current challenge uses, and `+` to open any other table. Click a column header to sort, click a cell to see its full value in the formula bar, double-click a cell to paste its value into the editor, and use "Filter rows…" to search the active sheet. For challenges that change data, the tables your statements touched show their changed state (marked •, changed rows highlighted). Unsent query drafts are kept per challenge in your browser.
+Then open http://localhost:8000. `build_web.py` exports `challenges.py` and the database into `web/`, so challenges are still written in Python. The checker in `web/engine.js` is a port of `engine.py`. Progress is saved in your browser; Export and Import move it between browsers as a `progress.json` in the same format the terminal version uses. The page has the challenge list on the left, a SQL editor (Ctrl+Enter runs, Ctrl+Space autocompletes), and a spreadsheet-style grid with sheet tabs along the bottom: `Result`, the tables the current challenge uses, and `+` to open any other table. Click a column header to sort, click a cell to see its full value in the formula bar, double-click a cell to paste its value into the editor, and use "Filter rows…" to search the active sheet. For challenges that change data, the tables your statements touched show their changed state (marked •, changed rows highlighted). Unsent query drafts are kept per challenge in your browser.

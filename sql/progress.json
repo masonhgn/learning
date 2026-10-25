@@ -11,6 +11,7 @@
     "group_by",
     "group_expression",
     "group_order",
+    "group_stock_value",
     "group_top_n",
     "group_two_columns",
     "having",

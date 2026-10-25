@@ -400,3 +400,26 @@ table.grid {
   .progress-track { width: 90px; }
   .filter { width: 110px; }
 }
+
+/* correct answer celebration */
+
+.status.correct { background: var(--done-bg); border-bottom-color: var(--done); }
+.status.correct .badge { background: var(--done); border-color: var(--done); color: #fff; }
+.status.correct .celebrate { color: var(--done); }
+
+@keyframes flash-green {
+  0%   { background: #7fd49a; }
+  100% { background: var(--done-bg); }
+}
+@keyframes flash-green-editor {
+  0%   { box-shadow: inset 0 0 0 3px var(--done), 0 0 18px #5cc47f; }
+  100% { box-shadow: inset 0 0 0 3px transparent, 0 0 0 transparent; }
+}
+.status.correct.flash { animation: flash-green 0.9s ease-out; }
+.editor-wrap.flash { animation: flash-green-editor 0.9s ease-out; position: relative; z-index: 1; }
+
+#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
+
+@media (prefers-reduced-motion: reduce) {
+  .status.correct.flash, .editor-wrap.flash { animation: none; }
+}
